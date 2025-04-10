@@ -7,34 +7,14 @@ const Employee = require('./models/Employee');
 const Attendance = require('./models/Attendance');
 
 const app = express();
-const PORT = process.env.PORT || 3000; // Use Render's port or 3000 locally
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // Use env variable or fallback
-
-// CORS configuration
-const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:5173', // Local development
-      'https://demo-checkin-frontend.vercel.app' // Deployed frontend URL
-    ];
-    console.log('Request origin:', origin); // Debug log for origin
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true, // Allow cookies/credentials
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Allow all common methods
-  allowedHeaders: ['Content-Type', 'x-employee-token', 'Authorization'], // Allow common headers
-  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
-};
+const PORT = 3000;
+const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
 
 app.use(express.json());
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
+app.use(cors({
+  origin: 'http://localhost:5173', // Allow React dev server
+  credentials: true,
+}));
 
 // Connect to MongoDB
 mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5z.mongodb.net/Demo-Checkin', {
@@ -45,7 +25,6 @@ mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5
 // Middleware to verify token
 const authenticateToken = (req, res, next) => {
   const token = req.headers['x-employee-token'];
-  console.log('Token received:', token); // Debug log
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
@@ -56,8 +35,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Register endpoint
-app.post('/register', async (req, res) => {
-  console.log('Register request received:', req.body); // Debug log
+app.post('/api/register', async (req, res) => {
   const { employeeId, name, email, password } = req.body;
   try {
     const existingEmployee = await Employee.findOne({ $or: [{ employeeId }, { email }] });
@@ -75,12 +53,8 @@ app.post('/register', async (req, res) => {
 });
 
 // Login endpoint
-app.post('/login', async (req, res) => {
-  console.log('Login request received:', req.body); // Debug log
+app.post('/api/login', async (req, res) => {
   const { employeeId, password } = req.body;
-  if (!employeeId || !password) {
-    return res.status(400).json({ message: 'Employee ID and password are required' });
-  }
   const employee = await Employee.findOne({ employeeId });
   if (!employee || !(await bcrypt.compare(password, employee.password))) {
     return res.status(401).json({ message: 'Invalid credentials' });
@@ -90,7 +64,7 @@ app.post('/login', async (req, res) => {
 });
 
 // Auto check-in endpoint with notification
-app.post('/checkin', authenticateToken, async (req, res) => {
+app.post('/api/checkin', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const today = new Date().toISOString().split('T')[0];
   const employee = await Employee.findOne({ employeeId });
@@ -101,6 +75,7 @@ app.post('/checkin', authenticateToken, async (req, res) => {
   if (!attendance) {
     attendance = new Attendance({ employeeId, date: today, checkIn: new Date() });
     await attendance.save();
+    // Send notification data (to be handled by frontend)
     res.json({ 
       message: 'Checked in successfully', 
       checkIn: attendance.checkIn,
@@ -117,7 +92,7 @@ app.post('/checkin', authenticateToken, async (req, res) => {
 });
 
 // Auto check-out endpoint
-app.post('/checkout', authenticateToken, async (req, res) => {
+app.post('/api/checkout', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const today = new Date().toISOString().split('T')[0];
   const attendance = await Attendance.findOne({ employeeId, date: today });
@@ -132,16 +107,10 @@ app.post('/checkout', authenticateToken, async (req, res) => {
 });
 
 // Get attendance log
-app.get('/attendance', authenticateToken, async (req, res) => {
+app.get('/api/attendance', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const logs = await Attendance.find({ employeeId }).sort({ date: -1 }).lean();
   res.json(logs || []);
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
-  res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
 // Start server

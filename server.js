@@ -117,36 +117,37 @@ app.post('/api/checkout', authenticateToken, async (req, res) => {
 });
 
 // Get attendance log
-// Get attendance log with full details
+// Get attendance log
 app.get('/api/attendance', authenticateToken, async (req, res) => {
   try {
     const { employeeId } = req;
     
-    // Find the employee to include name in the response
+    console.log('Fetching attendance for employeeId:', employeeId);
+    
+    // Find the employee to get their name
     const employee = await Employee.findOne({ employeeId });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
     }
     
-    // Get attendance records with more detailed sorting
-    const logs = await Attendance.find({ employeeId })
-      .sort({ date: -1, checkIn: -1 }) // Sort by date desc, then by checkIn time desc
+    // Get attendance records for THIS SPECIFIC employee only
+    const logs = await Attendance.find({ employeeId: employeeId })
+      .sort({ date: -1, checkIn: -1 })
       .lean();
     
-    // Add employee name to each record for display purposes
+    console.log(`Found ${logs.length} attendance records for ${employeeId}`);
+    
+    // Add employee name and formatted dates to each record
     const logsWithDetails = logs.map(log => ({
       ...log,
+      employeeId: employeeId, // Make sure this matches the logged-in user
       employeeName: employee.name,
-      // Format dates for better readability if needed
       formattedDate: new Date(log.date).toLocaleDateString(),
-      formattedCheckIn: log.checkIn ? new Date(log.checkIn).toLocaleString() : null,
-      formattedCheckOut: log.checkOut ? new Date(log.checkOut).toLocaleString() : null
+      formattedCheckIn: log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : null,
+      formattedCheckOut: log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : null
     }));
     
-    // Log the data being sent for debugging
-    console.log('Sending attendance data:', logsWithDetails);
-    
-    res.json(logsWithDetails || []);
+    res.json(logsWithDetails);
   } catch (error) {
     console.error('Error fetching attendance logs:', error);
     res.status(500).json({ message: 'Error fetching attendance logs', error: error.message });

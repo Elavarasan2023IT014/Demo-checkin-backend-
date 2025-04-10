@@ -8,16 +8,16 @@ const Attendance = require('./models/Attendance');
 
 const app = express();
 const PORT = process.env.PORT || 3000; // Use Render's port or 3000 locally
-const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'; // Use env variable or fallback
 
 // CORS configuration
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests from local development and deployed frontend
     const allowedOrigins = [
       'http://localhost:5173', // Local development
       'https://demo-checkin-frontend.vercel.app' // Deployed frontend URL
     ];
+    console.log('Request origin:', origin); // Debug log for origin
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -25,8 +25,9 @@ const corsOptions = {
     }
   },
   credentials: true, // Allow cookies/credentials
-  methods: ['GET', 'POST', 'OPTIONS'], // Allow necessary methods
-  allowedHeaders: ['Content-Type', 'x-employee-token'], // Allow custom headers
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Allow all common methods
+  allowedHeaders: ['Content-Type', 'x-employee-token', 'Authorization'], // Allow common headers
+  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
 };
 
 app.use(express.json());
@@ -44,6 +45,7 @@ mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5
 // Middleware to verify token
 const authenticateToken = (req, res, next) => {
   const token = req.headers['x-employee-token'];
+  console.log('Token received:', token); // Debug log
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
@@ -54,7 +56,8 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Register endpoint
-app.post('/api/register', async (req, res) => {
+app.post('/register', async (req, res) => {
+  console.log('Register request received:', req.body); // Debug log
   const { employeeId, name, email, password } = req.body;
   try {
     const existingEmployee = await Employee.findOne({ $or: [{ employeeId }, { email }] });
@@ -72,7 +75,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Login endpoint
-app.post('/api/login', async (req, res) => {
+app.post('/login', async (req, res) => {
   console.log('Login request received:', req.body); // Debug log
   const { employeeId, password } = req.body;
   if (!employeeId || !password) {
@@ -87,7 +90,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Auto check-in endpoint with notification
-app.post('/api/checkin', authenticateToken, async (req, res) => {
+app.post('/checkin', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const today = new Date().toISOString().split('T')[0];
   const employee = await Employee.findOne({ employeeId });
@@ -114,7 +117,7 @@ app.post('/api/checkin', authenticateToken, async (req, res) => {
 });
 
 // Auto check-out endpoint
-app.post('/api/checkout', authenticateToken, async (req, res) => {
+app.post('/checkout', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const today = new Date().toISOString().split('T')[0];
   const attendance = await Attendance.findOne({ employeeId, date: today });
@@ -129,7 +132,7 @@ app.post('/api/checkout', authenticateToken, async (req, res) => {
 });
 
 // Get attendance log
-app.get('/api/attendance', authenticateToken, async (req, res) => {
+app.get('/attendance', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const logs = await Attendance.find({ employeeId }).sort({ date: -1 }).lean();
   res.json(logs || []);
@@ -137,7 +140,7 @@ app.get('/api/attendance', authenticateToken, async (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err.stack);
   res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 

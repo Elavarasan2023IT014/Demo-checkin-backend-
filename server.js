@@ -13,19 +13,27 @@ const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
 // CORS configuration
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests from localhost during development and deployed frontend
-    const allowedOrigins = ['http://localhost:5173', 'https://your-frontend-domain.com/api']; // Add your deployed frontend URL if applicable
+    // Allow requests from local development and deployed frontend
+    const allowedOrigins = [
+      'http://localhost:5173', // Local development
+      'https://demo-checkin-frontend.vercel.app' // Deployed frontend URL
+    ];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true, // Allow cookies/credentials if needed
+  credentials: true, // Allow cookies/credentials
+  methods: ['GET', 'POST', 'OPTIONS'], // Allow necessary methods
+  allowedHeaders: ['Content-Type', 'x-employee-token'], // Allow custom headers
 };
 
 app.use(express.json());
 app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Connect to MongoDB
 mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5z.mongodb.net/Demo-Checkin', {
@@ -65,7 +73,11 @@ app.post('/api/register', async (req, res) => {
 
 // Login endpoint
 app.post('/api/login', async (req, res) => {
+  console.log('Login request received:', req.body); // Debug log
   const { employeeId, password } = req.body;
+  if (!employeeId || !password) {
+    return res.status(400).json({ message: 'Employee ID and password are required' });
+  }
   const employee = await Employee.findOne({ employeeId });
   if (!employee || !(await bcrypt.compare(password, employee.password))) {
     return res.status(401).json({ message: 'Invalid credentials' });
@@ -121,6 +133,12 @@ app.get('/api/attendance', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const logs = await Attendance.find({ employeeId }).sort({ date: -1 }).lean();
   res.json(logs || []);
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
 // Start server

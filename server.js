@@ -7,10 +7,11 @@ const Employee = require('./models/Employee');
 const Attendance = require('./models/Attendance');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
 
 app.use(express.json());
+// Using cors() without parameters allows access from any origin
 app.use(cors());
 
 // Connect to MongoDB

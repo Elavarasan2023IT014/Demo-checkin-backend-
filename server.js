@@ -14,7 +14,7 @@ const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
 const corsOptions = {
   origin: (origin, callback) => {
     // Allow requests from localhost during development and deployed frontend
-    const allowedOrigins = ['http://localhost:5173', 'https://your-frontend-domain.com']; // Add your deployed frontend URL if applicable
+    const allowedOrigins = ['http://localhost:5173', 'https://your-frontend-domain.com/api']; // Add your deployed frontend URL if applicable
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {

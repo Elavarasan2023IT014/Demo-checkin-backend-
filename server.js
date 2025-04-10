@@ -7,14 +7,25 @@ const Employee = require('./models/Employee');
 const Attendance = require('./models/Attendance');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // Use Render's port or 3000 locally
 const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
 
+// CORS configuration
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests from localhost during development and deployed frontend
+    const allowedOrigins = ['http://localhost:5173', 'https://your-frontend-domain.com']; // Add your deployed frontend URL if applicable
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow cookies/credentials if needed
+};
+
 app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:5173', // Allow React dev server
-  credentials: true,
-}));
+app.use(cors(corsOptions));
 
 // Connect to MongoDB
 mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5z.mongodb.net/Demo-Checkin', {
@@ -75,7 +86,6 @@ app.post('/api/checkin', authenticateToken, async (req, res) => {
   if (!attendance) {
     attendance = new Attendance({ employeeId, date: today, checkIn: new Date() });
     await attendance.save();
-    // Send notification data (to be handled by frontend)
     res.json({ 
       message: 'Checked in successfully', 
       checkIn: attendance.checkIn,

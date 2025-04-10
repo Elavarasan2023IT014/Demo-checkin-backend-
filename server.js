@@ -70,7 +70,7 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
   const token = jwt.sign({ employeeId }, JWT_SECRET, { expiresIn: '30d' });
-  res.json({ token });
+  res.json({ message: 'Login successful', token });
 });
 
 // Auto check-in endpoint with notification

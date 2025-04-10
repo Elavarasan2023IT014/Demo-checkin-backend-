@@ -16,7 +16,7 @@ const corsOptions = {
     // Allow requests from local development and deployed frontend
     const allowedOrigins = [
       'http://localhost:5173', // Local development
-      'https://demo-checkin-frontend.vercel.app/api' // Deployed frontend URL
+      'https://demo-checkin-frontend.vercel.app/' // Deployed frontend URL
     ];
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);

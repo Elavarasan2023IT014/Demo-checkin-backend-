@@ -15,7 +15,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL || 'https://demo-checkin-backend.onrender.com';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 app.use(express.json());

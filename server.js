@@ -2,41 +2,53 @@ const express = require('express');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
 const bcrypt = require('bcrypt');
 const Employee = require('./models/Employee');
 const Attendance = require('./models/Attendance');
+const sendMail = require('./utils/sendMail');
+//const { verifyRegistrationResponse, generateRegistrationOptions } = require('@simplewebauthn/server');
+const session = require('express-session'); // Add session middleware
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'your-secret-key'; // Replace with a secure key in production
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 app.use(express.json());
-// Using cors() without parameters allows access from any origin
+
+// Serve static files (e.g., register.html)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// CORS configuration
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, x-employee-token');
-  
-  // Handle OPTIONS method
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
 app.use(cors());
 
+// Session middleware
+app.use(session({
+  secret: 'your-session-secret', // Use env variable in production
+  resave: false,
+  saveUninitialized: false,
+}));
+
 // Connect to MongoDB
-mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5z.mongodb.net/Demo-Checkin', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => console.log('Connected to MongoDB')).catch(err => console.error('MongoDB error:', err));
+mongoose.connect('mongodb+srv://elavarasanr2023it:alwlhTZlbiW6nXQT@cluster0.eqz5z.mongodb.net/Demo-Checkin')
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB error:', err));
 
 // Middleware to verify token
 const authenticateToken = (req, res, next) => {
   const token = req.headers['x-employee-token'];
   if (!token) return res.status(401).json({ message: 'No token provided' });
-
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) return res.status(403).json({ message: 'Invalid token' });
     req.employeeId = decoded.employeeId;
@@ -44,21 +56,74 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Register endpoint
+// Registration endpoint
 app.post('/api/register', async (req, res) => {
   const { employeeId, name, email, password } = req.body;
+
+  if (!employeeId || !name || !email || !password) {
+    return res.status(400).json({ message: 'All fields are required.' });
+  }
+
   try {
-    const existingEmployee = await Employee.findOne({ $or: [{ employeeId }, { email }] });
-    if (existingEmployee) return res.status(400).json({ message: 'Employee ID or email already exists' });
+    const existingEmployee = await Employee.findOne({ $or: [{ employeeId }, { email: email.toLowerCase() }] });
+    if (existingEmployee) return res.status(409).json({ message: 'Employee ID or email already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const employee = new Employee({ employeeId, name, email, password: hashedPassword });
+
+    const newEmployee = new Employee({
+      employeeId,
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      isRegistered: false,
+    });
+
+    await newEmployee.save();
+
+    const link = `${BASE_URL}/register.html?email=${encodeURIComponent(email)}`;
+    const html = `
+      <h3>Hello ${name},</h3>
+      <p>Please click the link below to register your fingerprint:</p>
+      <a href="${link}">Register Fingerprint</a>
+      <p>Regards,<br/>Attendance System</p>
+    `;
+
+    await sendMail(email, 'Register Your Fingerprint', html);
+    const token = jwt.sign({ employeeId }, JWT_SECRET, { expiresIn: '30d' });
+    res.status(201).json({ message: 'Employee registered. Check email to register fingerprint.', token });
+  } catch (error) {
+    console.error('Registration Error:', error);
+    res.status(500).json({ message: 'Error registering employee.', error: error.message });
+  }
+});
+
+app.post('/register-fingerprint', async (req, res) => {
+  const { email, fingerprintHash } = req.body;
+  if (!email || !fingerprintHash) {
+    return res.status(400).json({ message: 'Email and fingerprintHash are required.' });
+  }
+
+  try {
+    const employee = await Employee.findOne({ email: email.toLowerCase() });
+    if (!employee) return res.status(404).json({ message: 'Employee not found.' });
+
+    if (employee.isRegistered && employee.fingerprintHash) {
+      return res.status(400).json({ message: 'Fingerprint already registered.' });
+    }
+
+    if (!fingerprintHash) {
+      return res.status(400).json({ message: 'Fingerprint scanning is not supported on your device.' });
+    }
+
+    const hashedFingerprint = await bcrypt.hash(fingerprintHash, 10);
+    employee.fingerprintHash = hashedFingerprint;
+    employee.isRegistered = true;
     await employee.save();
 
-    const token = jwt.sign({ employeeId }, JWT_SECRET, { expiresIn: '30d' });
-    res.status(201).json({ message: 'Registration successful', token });
-  } catch (error) {
-    res.status(500).json({ message: 'Error registering', error: error.message });
+    res.status(200).json({ message: 'Fingerprint registered successfully ✅' });
+  } catch (err) {
+    console.error('Fingerprint Registration Error:', err);
+    res.status(500).json({ message: 'Error registering fingerprint.' });
   }
 });
 
@@ -70,10 +135,10 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials' });
   }
   const token = jwt.sign({ employeeId }, JWT_SECRET, { expiresIn: '30d' });
-  res.json({ message: 'Login successful', token , employeeId: employee.employeeId });
+  res.json({ message: 'Login successful', token, employeeId: employee.employeeId });
 });
 
-// Auto check-in endpoint with notification
+// Auto check-in endpoint
 app.post('/api/checkin', authenticateToken, async (req, res) => {
   const { employeeId } = req;
   const today = new Date().toISOString().split('T')[0];
@@ -81,18 +146,21 @@ app.post('/api/checkin', authenticateToken, async (req, res) => {
 
   if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
+  if (!employee.isRegistered) {
+    return res.status(400).json({ message: 'Fingerprint not registered. Please register first.', needsFingerprint: true });
+  }
+
   let attendance = await Attendance.findOne({ employeeId, date: today });
   if (!attendance) {
     attendance = new Attendance({ employeeId, date: today, checkIn: new Date() });
     await attendance.save();
-    // Send notification data (to be handled by frontend)
-    res.json({ 
-      message: 'Checked in successfully', 
+    res.json({
+      message: 'Checked in successfully',
       checkIn: attendance.checkIn,
       notification: {
         title: 'Check-In',
         body: `${employeeId} (${employee.name}) has checked in!`,
-      }
+      },
     });
   } else if (!attendance.checkOut) {
     res.json({ message: 'Already checked in', checkIn: attendance.checkIn });
@@ -117,36 +185,25 @@ app.post('/api/checkout', authenticateToken, async (req, res) => {
 });
 
 // Get attendance log
-// Get attendance log
 app.get('/api/attendance', authenticateToken, async (req, res) => {
   try {
     const { employeeId } = req;
-    
-    console.log('Fetching attendance for employeeId:', employeeId);
-    
-    // Find the employee to get their name
     const employee = await Employee.findOne({ employeeId });
-    if (!employee) {
-      return res.status(404).json({ message: 'Employee not found' });
-    }
-    
-    // Get attendance records for THIS SPECIFIC employee only
-    const logs = await Attendance.find({ employeeId: employeeId })
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+    const logs = await Attendance.find({ employeeId })
       .sort({ date: -1, checkIn: -1 })
       .lean();
-    
-    console.log(`Found ${logs.length} attendance records for ${employeeId}`);
-    
-    // Add employee name and formatted dates to each record
+
     const logsWithDetails = logs.map(log => ({
       ...log,
-      employeeId: employeeId, // Make sure this matches the logged-in user
+      employeeId,
       employeeName: employee.name,
       formattedDate: new Date(log.date).toLocaleDateString(),
       formattedCheckIn: log.checkIn ? new Date(log.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : null,
-      formattedCheckOut: log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : null
+      formattedCheckOut: log.checkOut ? new Date(log.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : null,
     }));
-    
+
     res.json(logsWithDetails);
   } catch (error) {
     console.error('Error fetching attendance logs:', error);

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Register Fingerprint</title>
+  <style>
+    body {
+      background: #f3f3f3;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .card {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover:not(:disabled) {
+      background-color: #0056b3;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    #fingerprintHash {
+      display: none;
+    }
+
+    .status {
+      margin-top: 15px;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .status.error {
+      color: red;
+    }
+
+    .status.success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Register Your Fingerprint</h2>
+    <form id="fingerprintForm">
+      <input type="email" id="email" name="email" readonly placeholder="Loading email...">
+      <button type="button" id="scanBtn" disabled>🔍 Scan Fingerprint</button>
+      <input type="text" id="fingerprintHash" name="fingerprintHash" readonly>
+      <button type="submit" id="submitBtn" disabled>📨 Submit</button>
+      <div class="status" id="statusText"></div>
+    </form>
+  </div>
+
+  <script src ="register.js">
+  
+  </script>
+
+</body>
+</html>
